@@ -1,114 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import {
-  SafeAreaView,
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  PermissionsAndroid,
-} from 'react-native';
-import { startWakeWordListener, stopWakeWordListener } from './src/wakeWordListener';
-import { parseCommand } from './src/commandParser';
-import { runMusicCommand, MusicApp } from './src/musicController';
+name: Build APK
 
-const APPS: { id: MusicApp; label: string }[] = [
-  { id: 'youtube_music', label: 'YouTube Music' },
-  { id: 'spotify', label: 'Spotify' },
-];
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
-export default function App() {
-  const [selectedApp, setSelectedApp] = useState<MusicApp>('youtube_music');
-  const [listening, setListening] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  useEffect(() => {
-    PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-  }, []);
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-  const addLog = (line: string) => setLog((prev) => [line, ...prev].slice(0, 20));
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
-  const handleHeard = (fullText: string) => {
-    addLog(`Heard: "${fullText}"`);
-    const parsed = parseCommand(fullText);
-    if (!parsed) {
-      addLog('No command understood after wake word.');
-      return;
-    }
-    addLog(`Command: ${parsed.action}${parsed.query ? ` ("${parsed.query}")` : ''}`);
-    runMusicCommand(selectedApp, parsed);
-  };
+      - name: Scaffold RN project
+        run: npx react-native@0.74.5 init BuddyApp --package-name com.buddyapp
 
-  const toggleListening = () => {
-    if (listening) {
-      stopWakeWordListener();
-      setListening(false);
-      addLog('Stopped listening.');
-    } else {
-      startWakeWordListener(handleHeard, (err) => addLog(`Error: ${err}`));
-      setListening(true);
-      addLog('Listening for "Hey Buddy"...');
-    }
-  };
+      - name: Copy custom files into scaffold
+        run: |
+          cp App.tsx BuddyApp/App.tsx
+          mkdir -p BuddyApp/src
+          cp -r src/* BuddyApp/src/
+          mkdir -p BuddyApp/android/app/src/main/java/com/buddyapp
+          cp android/app/src/main/java/com/buddyapp/MediaControlModule.kt BuddyApp/android/app/src/main/java/com/buddyapp/
+          cp android/app/src/main/java/com/buddyapp/MediaControlPackage.kt BuddyApp/android/app/src/main/java/com/buddyapp/
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Buddy</Text>
-      <Text style={styles.subtitle}>Say "Hey Buddy, play 90s songs"</Text>
+      - name: Register native module & mic permission
+        run: |
+          cd BuddyApp
+          sed -i '/return packages/i\        packages.add(com.buddyapp.MediaControlPackage())' android/app/src/main/java/com/buddyapp/MainApplication.kt
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.RECORD_AUDIO" \/>' android/app/src/main/AndroidManifest.xml
 
-      <Text style={styles.sectionLabel}>Control which app?</Text>
-      <View style={styles.appRow}>
-        {APPS.map((app) => (
-          <TouchableOpacity
-            key={app.id}
-            style={[styles.appChip, selectedApp === app.id && styles.appChipActive]}
-            onPress={() => setSelectedApp(app.id)}>
-            <Text style={selectedApp === app.id ? styles.appChipTextActive : styles.appChipText}>
-              {app.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      - name: Install extra dependency
+        run: cd BuddyApp && npm install @react-native-voice/voice
 
-      <TouchableOpacity style={styles.micButton} onPress={toggleListening}>
-        <Text style={styles.micButtonText}>{listening ? 'Stop' : 'Start'} Buddy</Text>
-      </TouchableOpacity>
+      - name: Build debug APK
+        run: cd BuddyApp/android && chmod +x gradlew && ./gradlew assembleDebug
 
-      <Text style={styles.sectionLabel}>Log</Text>
-      <FlatList
-        data={log}
-        keyExtractor={(_, i) => String(i)}
-        renderItem={({ item }) => <Text style={styles.logLine}>{item}</Text>}
-        style={styles.logList}
-      />
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#12081f', padding: 20 },
-  title: { color: '#fff', fontSize: 32, fontWeight: '700', marginTop: 20 },
-  subtitle: { color: '#a992d6', fontSize: 14, marginBottom: 20 },
-  sectionLabel: { color: '#a992d6', fontSize: 13, marginTop: 16, marginBottom: 8 },
-  appRow: { flexDirection: 'row', gap: 10 },
-  appChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#5b3fa0',
-  },
-  appChipActive: { backgroundColor: '#5b3fa0' },
-  appChipText: { color: '#a992d6' },
-  appChipTextActive: { color: '#fff', fontWeight: '600' },
-  micButton: {
-    marginTop: 30,
-    backgroundColor: '#7c4dff',
-    borderRadius: 30,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  micButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  logList: { flex: 1, marginTop: 4 },
-  logLine: { color: '#cbbde0', fontSize: 12, marginBottom: 6 },
-});
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: buddy-app-debug-apk
+          path: BuddyApp/android/app/build/outputs/apk/debug/app-debug.apk

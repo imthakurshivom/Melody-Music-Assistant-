@@ -1,0 +1,114 @@
+import React, { useEffect, useState } from 'react';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  PermissionsAndroid,
+} from 'react-native';
+import { startWakeWordListener, stopWakeWordListener } from './src/wakeWordListener';
+import { parseCommand } from './src/commandParser';
+import { runMusicCommand, MusicApp } from './src/musicController';
+
+const APPS: { id: MusicApp; label: string }[] = [
+  { id: 'youtube_music', label: 'YouTube Music' },
+  { id: 'spotify', label: 'Spotify' },
+];
+
+export default function App() {
+  const [selectedApp, setSelectedApp] = useState<MusicApp>('youtube_music');
+  const [listening, setListening] = useState(false);
+  const [log, setLog] = useState<string[]>([]);
+
+  useEffect(() => {
+    PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+  }, []);
+
+  const addLog = (line: string) => setLog((prev) => [line, ...prev].slice(0, 20));
+
+  const handleHeard = (fullText: string) => {
+    addLog(`Heard: "${fullText}"`);
+    const parsed = parseCommand(fullText);
+    if (!parsed) {
+      addLog('No command understood after wake word.');
+      return;
+    }
+    addLog(`Command: ${parsed.action}${parsed.query ? ` ("${parsed.query}")` : ''}`);
+    runMusicCommand(selectedApp, parsed);
+  };
+
+  const toggleListening = () => {
+    if (listening) {
+      stopWakeWordListener();
+      setListening(false);
+      addLog('Stopped listening.');
+    } else {
+      startWakeWordListener(handleHeard, (err) => addLog(`Error: ${err}`));
+      setListening(true);
+      addLog('Listening for "Hey Buddy"...');
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Buddy</Text>
+      <Text style={styles.subtitle}>Say "Hey Buddy, play 90s songs"</Text>
+
+      <Text style={styles.sectionLabel}>Control which app?</Text>
+      <View style={styles.appRow}>
+        {APPS.map((app) => (
+          <TouchableOpacity
+            key={app.id}
+            style={[styles.appChip, selectedApp === app.id && styles.appChipActive]}
+            onPress={() => setSelectedApp(app.id)}>
+            <Text style={selectedApp === app.id ? styles.appChipTextActive : styles.appChipText}>
+              {app.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <TouchableOpacity style={styles.micButton} onPress={toggleListening}>
+        <Text style={styles.micButtonText}>{listening ? 'Stop' : 'Start'} Buddy</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionLabel}>Log</Text>
+      <FlatList
+        data={log}
+        keyExtractor={(_, i) => String(i)}
+        renderItem={({ item }) => <Text style={styles.logLine}>{item}</Text>}
+        style={styles.logList}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#12081f', padding: 20 },
+  title: { color: '#fff', fontSize: 32, fontWeight: '700', marginTop: 20 },
+  subtitle: { color: '#a992d6', fontSize: 14, marginBottom: 20 },
+  sectionLabel: { color: '#a992d6', fontSize: 13, marginTop: 16, marginBottom: 8 },
+  appRow: { flexDirection: 'row', gap: 10 },
+  appChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#5b3fa0',
+  },
+  appChipActive: { backgroundColor: '#5b3fa0' },
+  appChipText: { color: '#a992d6' },
+  appChipTextActive: { color: '#fff', fontWeight: '600' },
+  micButton: {
+    marginTop: 30,
+    backgroundColor: '#7c4dff',
+    borderRadius: 30,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  micButtonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  logList: { flex: 1, marginTop: 4 },
+  logLine: { color: '#cbbde0', fontSize: 12, marginBottom: 6 },
+});

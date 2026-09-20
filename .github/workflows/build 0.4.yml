@@ -1,0 +1,844 @@
+name: Build Melody Music Assistant
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Create Android project
+        shell: bash
+        run: |
+
+          mkdir -p app/src/main/java/com/shivom/melody
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+          mkdir -p app/src/main/res/mipmap-anydpi-v26
+
+          # -----------------------------
+          # settings.gradle
+          # -----------------------------
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "Melody"
+
+          include(":app")
+          EOF
+
+
+          # -----------------------------
+          # Root build.gradle
+          # -----------------------------
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.6.1' apply false
+          }
+          EOF
+
+
+          # -----------------------------
+          # App build.gradle
+          # -----------------------------
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+
+              namespace 'com.shivom.melody'
+
+              compileSdk 35
+
+              defaultConfig {
+
+                  applicationId 'com.shivom.melody'
+
+                  minSdk 26
+
+                  targetSdk 35
+
+                  versionCode 4
+
+                  versionName '0.4'
+              }
+          }
+          EOF
+
+
+          # -----------------------------
+          # Colors
+          # -----------------------------
+
+          cat > app/src/main/res/values/colors.xml <<'EOF'
+          <resources>
+
+              <color name="melody_bg">#0B0D12</color>
+
+              <color name="melody_card">#171B24</color>
+
+              <color name="melody_accent">#B8C7FF</color>
+
+          </resources>
+          EOF
+
+
+          # -----------------------------
+          # Theme
+          # -----------------------------
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+
+              <style
+                  name="AppTheme"
+                  parent="android:style/Theme.Material.NoActionBar">
+
+                  <item name="android:fontFamily">sans</item>
+
+                  <item name="android:statusBarColor">
+                      @color/melody_bg
+                  </item>
+
+                  <item name="android:navigationBarColor">
+                      @color/melody_bg
+                  </item>
+
+                  <item name="android:windowLightStatusBar">
+                      false
+                  </item>
+
+                  <item name="android:colorAccent">
+                      @color/melody_accent
+                  </item>
+
+              </style>
+
+          </resources>
+          EOF
+
+
+          # -----------------------------
+          # Melody icon
+          # -----------------------------
+
+          cat > app/src/main/res/drawable/ic_melody.xml <<'EOF'
+          <vector
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+
+              <path
+                  android:fillColor="#7C4DFF"
+                  android:pathData="
+                  M54,4
+                  A50,50 0,1 0,54 104
+                  A50,50 0,1 0,54 4"/>
+
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="
+                  M64,25
+                  L64,67.5
+                  C61,65.3 57.2,64 53,64
+                  C45.3,64 39,68.3 39,73.5
+                  C39,78.7 45.3,83 53,83
+                  C60.7,83 67,78.7 67,73.5
+                  L67,40
+                  L82,35
+                  L82,24
+                  L64,25Z"/>
+
+          </vector>
+          EOF
+
+
+          # -----------------------------
+          # Android Manifest
+          # -----------------------------
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest
+              xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <queries>
+
+                  <intent>
+
+                      <action
+                          android:name=
+                          "android.speech.RecognitionService"/>
+
+                  </intent>
+
+              </queries>
+
+
+              <uses-permission
+                  android:name=
+                  "android.permission.RECORD_AUDIO"/>
+
+              <uses-permission
+                  android:name=
+                  "android.permission.FOREGROUND_SERVICE"/>
+
+              <uses-permission
+                  android:name=
+                  "android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+
+
+              <application
+
+                  android:theme="@style/AppTheme"
+
+                  android:label="Melody"
+
+                  android:icon="@drawable/ic_melody"
+
+                  android:allowBackup="true"
+
+                  android:supportsRtl="true">
+
+
+                  <activity
+
+                      android:name=".MainActivity"
+
+                      android:exported="true">
+
+                      <intent-filter>
+
+                          <action
+                              android:name=
+                              "android.intent.action.MAIN"/>
+
+                          <category
+                              android:name=
+                              "android.intent.category.LAUNCHER"/>
+
+                      </intent-filter>
+
+                  </activity>
+
+
+                  <service
+
+                      android:name=".MelodyService"
+
+                      android:exported="false"
+
+                      android:foregroundServiceType=
+                      "microphone"/>
+
+
+                  <service
+
+                      android:name=
+                      ".MusicNotificationService"
+
+                      android:label=
+                      "Melody Music Control"
+
+                      android:permission=
+                      "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+
+                      android:exported="true">
+
+                      <intent-filter>
+
+                          <action
+                              android:name=
+                              "android.service.notification.NotificationListenerService"/>
+
+                      </intent-filter>
+
+                  </service>
+
+
+              </application>
+
+          </manifest>
+          EOF
+
+
+          # =====================================================
+          # MusicNotificationService
+          # =====================================================
+
+          cat > app/src/main/java/com/shivom/melody/MusicNotificationService.java <<'EOF'
+          package com.shivom.melody;
+
+          import android.content.ComponentName;
+
+          import android.media.session.MediaController;
+
+          import android.media.session.MediaSessionManager;
+
+          import android.service.notification.NotificationListenerService;
+
+          import java.util.List;
+
+
+          public class MusicNotificationService
+                  extends NotificationListenerService {
+
+
+              private static MusicNotificationService instance;
+
+
+              @Override
+              public void onListenerConnected() {
+
+                  super.onListenerConnected();
+
+                  instance = this;
+              }
+
+
+              @Override
+              public void onListenerDisconnected() {
+
+                  instance = null;
+
+                  super.onListenerDisconnected();
+              }
+
+
+              public static boolean control(String action) {
+
+                  if (instance == null)
+                      return false;
+
+
+                  try {
+
+                      MediaSessionManager manager =
+                          (MediaSessionManager)
+                          instance.getSystemService(
+                              MEDIA_SESSION_SERVICE
+                          );
+
+
+                      ComponentName component =
+                          new ComponentName(
+                              instance,
+                              MusicNotificationService.class
+                          );
+
+
+                      List<MediaController> sessions =
+                          manager.getActiveSessions(
+                              component
+                          );
+
+
+                      if (
+                          sessions == null ||
+                          sessions.isEmpty()
+                      ) {
+
+                          return false;
+                      }
+
+
+                      MediaController controller =
+                          sessions.get(0);
+
+
+                      MediaController.TransportControls
+                          controls =
+                          controller.getTransportControls();
+
+
+                      switch (action) {
+
+                          case "play":
+
+                              controls.play();
+
+                              return true;
+
+
+                          case "pause":
+
+                              controls.pause();
+
+                              return true;
+
+
+                          case "next":
+
+                              controls.skipToNext();
+
+                              return true;
+
+
+                          case "previous":
+
+                              controls.skipToPrevious();
+
+                              return true;
+
+
+                          default:
+
+                              return false;
+                      }
+
+
+                  } catch (Exception e) {
+
+                      return false;
+                  }
+              }
+          }
+          EOF
+
+
+          # =====================================================
+          # MelodyService
+          # =====================================================
+
+          cat > app/src/main/java/com/shivom/melody/MelodyService.java <<'EOF'
+          package com.shivom.melody;
+
+
+          import android.app.Notification;
+
+          import android.app.NotificationChannel;
+
+          import android.app.NotificationManager;
+
+          import android.app.Service;
+
+
+          import android.content.Intent;
+
+
+          import android.media.AudioManager;
+
+
+          import android.os.Build;
+
+          import android.os.Bundle;
+
+          import android.os.Handler;
+
+          import android.os.IBinder;
+
+          import android.os.Looper;
+
+
+          import android.speech.RecognitionListener;
+
+          import android.speech.RecognizerIntent;
+
+          import android.speech.SpeechRecognizer;
+
+
+          import java.util.ArrayList;
+
+          import java.util.Locale;
+
+
+
+          public class MelodyService extends Service {
+
+
+              private SpeechRecognizer recognizer;
+
+              private Handler handler;
+
+
+              private boolean commandMode = false;
+
+              private boolean stopping = false;
+
+
+
+              @Override
+              public void onCreate() {
+
+                  super.onCreate();
+
+
+                  handler =
+                      new Handler(
+                          Looper.getMainLooper()
+                      );
+
+
+                  createNotificationChannel();
+
+
+                  Notification.Builder builder;
+
+
+                  if (Build.VERSION.SDK_INT >= 26) {
+
+                      builder =
+                          new Notification.Builder(
+                              this,
+                              "melody"
+                          );
+
+                  } else {
+
+                      builder =
+                          new Notification.Builder(
+                              this
+                          );
+                  }
+
+
+                  Notification notification =
+                      builder
+
+                          .setContentTitle(
+                              "Melody"
+                          )
+
+                          .setContentText(
+                              "Listening for Hey Melody"
+                          )
+
+                          .setSmallIcon(
+                              android.R.drawable
+                                  .ic_btn_speak_now
+                          )
+
+                          .build();
+
+
+                  startForeground(
+                      10,
+                      notification
+                  );
+
+
+                  startWakeMode();
+              }
+
+
+
+              private void createNotificationChannel() {
+
+                  if (Build.VERSION.SDK_INT >= 26) {
+
+                      NotificationChannel channel =
+                          new NotificationChannel(
+
+                              "melody",
+
+                              "Melody",
+
+                              NotificationManager
+                                  .IMPORTANCE_LOW
+                          );
+
+
+                      getSystemService(
+                          NotificationManager.class
+                      ).createNotificationChannel(
+                          channel
+                      );
+                  }
+              }
+
+
+
+              # Wake-word mode
+
+              private void startWakeMode() {
+
+                  commandMode = false;
+
+                  startRecognition();
+              }
+
+
+
+              # Command mode
+
+              private void startCommandMode() {
+
+                  commandMode = true;
+
+                  stopRecognition();
+
+
+                  handler.postDelayed(
+
+                      () -> startRecognition(),
+
+                      500
+                  );
+              }
+
+
+
+              private void startRecognition() {
+
+                  if (
+                      stopping ||
+                      !SpeechRecognizer
+                          .isRecognitionAvailable(
+                              this
+                          )
+                  ) {
+
+                      return;
+                  }
+
+
+                  stopRecognition();
+
+
+                  recognizer =
+                      SpeechRecognizer
+                          .createSpeechRecognizer(
+                              this
+                          );
+
+
+                  recognizer.setRecognitionListener(
+
+                      new RecognitionListener() {
+
+
+                          @Override
+                          public void onResults(
+                              Bundle bundle
+                          ) {
+
+
+                              ArrayList<String> results =
+
+                                  bundle.getStringArrayList(
+
+                                      SpeechRecognizer
+                                          .RESULTS_RECOGNITION
+                                  );
+
+
+                              String text = "";
+
+
+                              if (
+                                  results != null &&
+                                  !results.isEmpty()
+                              ) {
+
+                                  text =
+                                      results
+                                          .get(0)
+                                          .toLowerCase(
+                                              Locale.ROOT
+                                          )
+                                          .trim();
+                              }
+
+
+                              # --------------------------------
+                              # Wake-word mode
+                              # --------------------------------
+
+                              if (!commandMode) {
+
+
+                                  if (
+                                      containsWakeWord(
+                                          text
+                                      )
+                                  ) {
+
+                                      startCommandMode();
+
+                                  } else {
+
+                                      restartWake();
+                                  }
+
+
+                                  return;
+                              }
+
+
+                              # --------------------------------
+                              # Command mode
+                              # --------------------------------
+
+                              executeCommand(text);
+
+
+                              restartWake();
+                          }
+
+
+
+                          @Override
+                          public void onError(
+                              int error
+                          ) {
+
+                              restartWake();
+                          }
+
+
+                          @Override
+                          public void onReadyForSpeech(
+                              Bundle bundle
+                          ) {
+                          }
+
+
+                          @Override
+                          public void onBeginningOfSpeech() {
+                          }
+
+
+                          @Override
+                          public void onRmsChanged(
+                              float rms
+                          ) {
+                          }
+
+
+                          @Override
+                          public void onBufferReceived(
+                              byte[] buffer
+                          ) {
+                          }
+
+
+                          @Override
+                          public void onEndOfSpeech() {
+                          }
+
+
+                          @Override
+                          public void onPartialResults(
+                              Bundle bundle
+                          ) {
+                          }
+
+
+                          @Override
+                          public void onEvent(
+                              int eventType,
+                              Bundle params
+                          ) {
+                          }
+
+                      }
+                  );
+
+
+                  Intent intent =
+
+                      new Intent(
+
+                          RecognizerIntent
+                              .ACTION_RECOGNIZE_SPEECH
+                      );
+
+
+                  intent.putExtra(
+
+                      RecognizerIntent
+                          .EXTRA_LANGUAGE_MODEL,
+
+                      RecognizerIntent
+                          .LANGUAGE_MODEL_FREE_FORM
+                  );
+
+
+                  intent.putExtra(
+
+                      RecognizerIntent
+                          .EXTRA_MAX_RESULTS,
+
+                      3
+                  );
+
+
+                  intent.putExtra(
+
+                      RecognizerIntent
+                          .EXTRA_PARTIAL_RESULTS,
+
+                      false
+                  );
+
+
+                  intent.putExtra(
+
+                      RecognizerIntent
+                          .EXTRA_PREFER_OFFLINE,
+
+                      true
+                  );
+
+
+                  recognizer.startListening(
+                      intent
+                  );
+              }
+
+
+
+              private boolean containsWakeWord(
+                  String text
+              ) {
+
+                  return
+
+                      text.contains(
+                          "hey melody"
+                      )
+
+                      ||
+
+                      text.contains(
+                          "hey, melody"
+                      )
+
+                      ||
+
+                      text.contains(
+                          "hey melodi"
+                      )
+
+                      ||
+
+                      text.contains(
+                          "हे मेलोडी"
+                      );
+         

@@ -1,0 +1,87 @@
+name: Build Melody Music Assistant APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Android project
+        shell: bash
+        run: |
+          mkdir -p app/src/main/java/com/shivom/melody app/src/main/res/values
+          cat > settings.gradle <<'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = "Melody"
+          include(":app")
+          EOF
+          cat > build.gradle <<'EOF'
+          plugins { id 'com.android.application' version '8.6.1' apply false }
+          EOF
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android { namespace 'com.shivom.melody'; compileSdk 35
+            defaultConfig { applicationId 'com.shivom.melody'; minSdk 26; targetSdk 35; versionCode 1; versionName '0.1' }
+          }
+          EOF
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources><style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+          <item name="android:fontFamily">sans</item><item name="android:statusBarColor">#0B0D12</item>
+          <item name="android:navigationBarColor">#0B0D12</item></style></resources>
+          EOF
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+          <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+          <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+          <application android:theme="@style/AppTheme" android:label="Melody">
+          <activity android:name=".MainActivity" android:exported="true"><intent-filter>
+          <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>
+          </intent-filter></activity>
+          <service android:name=".MusicService" android:exported="false" android:foregroundServiceType="microphone"/>
+          </application></manifest>
+          EOF
+          cat > app/src/main/java/com/shivom/melody/MusicService.java <<'EOF'
+          package com.shivom.melody;
+          import android.app.*; import android.content.*; import android.os.*; import android.speech.*; import java.util.*;
+          public class MusicService extends Service {
+            SpeechRecognizer r; Intent i;
+            public void onCreate(){super.onCreate(); if(Build.VERSION.SDK_INT>=26){NotificationChannel c=new NotificationChannel("melody","Melody",NotificationManager.IMPORTANCE_LOW);getSystemService(NotificationManager.class).createNotificationChannel(c);}
+              Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,"melody"):new Notification.Builder(this);
+              startForeground(7,b.setContentTitle("Melody").setContentText("Listening for Hey Music").setSmallIcon(android.R.drawable.ic_btn_speak_now).build()); listen();}
+            void listen(){if(!SpeechRecognizer.isRecognitionAvailable(this))return; r=SpeechRecognizer.createSpeechRecognizer(this); r.setRecognitionListener(new RecognitionListener(){
+              public void onResults(Bundle b){ArrayList<String>x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);if(x!=null)for(String s:x)if(s.toLowerCase(Locale.ROOT).contains("hey music")){Intent a=new Intent(MusicService.this,MainActivity.class);a.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);a.putExtra("wake",true);startActivity(a);break;} restart();}
+              public void onError(int e){restart();} public void onReadyForSpeech(Bundle b){} public void onBeginningOfSpeech(){} public void onRmsChanged(float v){} public void onBufferReceived(byte[]b){} public void onEndOfSpeech(){} public void onPartialResults(Bundle b){} public void onEvent(int a,Bundle b){}
+            }); i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);r.startListening(i);}
+            void restart(){if(r!=null)r.cancel();new Handler(Looper.getMainLooper()).postDelayed(this::listen,700);}
+            public int onStartCommand(Intent i,int f,int id){return START_STICKY;} public IBinder onBind(Intent i){return null;} public void onDestroy(){if(r!=null)r.destroy();super.onDestroy();}
+          }
+          EOF
+          cat > app/src/main/java/com/shivom/melody/MainActivity.java <<'EOF'
+          package com.shivom.melody;
+          import android.app.*;import android.os.*;import android.Manifest;import android.content.*;import android.content.pm.PackageManager;import android.graphics.Color;import android.view.*;import android.widget.*;
+          public class MainActivity extends Activity{
+            int d(int n){return(int)(n*getResources().getDisplayMetrics().density+.5f);}
+            TextView status;
+            public void onCreate(Bundle b){super.onCreate(b); LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);l.setGravity(Gravity.CENTER_HORIZONTAL);l.setPadding(d(24),d(50),d(24),d(24));l.setBackgroundColor(Color.rgb(11,13,18));
+              TextView t=new TextView(this);t.setText("Melody");t.setTextColor(Color.WHITE);t.setTextSize(38);t.setGravity(17);l.addView(t,new LinearLayout.LayoutParams(-1,d(70)));
+              TextView w=new TextView(this);w.setText("Say  “Hey Music”");w.setTextColor(0xffc9d7ff);w.setTextSize(22);w.setGravity(17);l.addView(w,new LinearLayout.LayoutParams(-1,d(60)));
+              status=new TextView(this);status.setText("Voice assistant ready");status.setTextColor(0xffaeb7c8);status.setGravity(17);l.addView(status,new LinearLayout.LayoutParams(-1,d(45)));
+              Button x=new Button(this);x.setText("Start Hey Music");x.setOnClickListener(v->startAssistant());l.addView(x,new LinearLayout.LayoutParams(-1,d(55)));
+              TextView c=new TextView(this);c.setText("\nCommands:\n• Hey Music, play music\n• Hey Music, pause\n• Hey Music, next song\n• Hey Music, previous song\n• Hey Music, volume up/down");c.setTextColor(0xffd8deea);c.setTextSize(16);l.addView(c,new LinearLayout.LayoutParams(-1,d(230)));setContentView(l);
+              if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},42);}
+            void startAssistant(){if(Build.VERSION.SDK_INT>=26)startForegroundService(new Intent(this,MusicService.class));else startService(new Intent(this,MusicService.class));status.setText("Listening for “Hey Music”…");}
+          }
+          EOF
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: "8.7"}
+      - name: Build APK
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Melody-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
